@@ -29,6 +29,13 @@ export const dict = {
   "ui.fileMedia.binary.title": "二進位檔案",
   "ui.fileMedia.binary.description.path": "無法顯示 {{path}}，因為它是二進位檔案。",
   "ui.fileMedia.binary.description.default": "無法顯示此檔案，因為它是二進位檔案。",
+  "ui.sessionReviewV2.copyPath": "複製路徑",
+  "ui.sessionReviewV2.copyFilename": "複製檔名",
+  "ui.sessionReviewV2.openWithDefaultApp": "用預設應用程式開啟",
+  "ui.sessionReviewV2.viewDiff": "差異",
+  "ui.sessionReviewV2.viewPreview": "預覽",
+  "ui.sessionReviewV2.openInBrowser": "在瀏覽器中開啟",
+  "ui.sessionReviewV2.previewMode": "預覽模式",
 
   "ui.lineComment.label.prefix": "評論 ",
   "ui.lineComment.label.suffix": "",

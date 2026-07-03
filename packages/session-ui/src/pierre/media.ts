@@ -40,6 +40,14 @@ export function mediaKindFromPath(path: string | undefined): MediaKind | undefin
   if (audioExtensions.has(ext)) return "audio"
 }
 
+export type ReviewPreviewKind = "markdown" | "html"
+
+export function reviewPreviewKind(path: string | undefined): ReviewPreviewKind | undefined {
+  const ext = fileExtension(path)
+  if (ext === "md" || ext === "markdown" || ext === "mdx") return "markdown"
+  if (ext === "html" || ext === "htm") return "html"
+}
+
 export function isBinaryContent(value: MediaValue) {
   return mediaRecord(value)?.type === "binary"
 }

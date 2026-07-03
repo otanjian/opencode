@@ -269,7 +269,31 @@
 
 [data-component="session-review-v2"] [data-slot="session-review-v2-file-header"] [data-component="diff-changes"] {
   flex-shrink: 0;
+}
+
+[data-component="session-review-v2"] [data-slot="session-review-v2-file-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
   margin-left: auto;
+}
+
+[data-component="session-review-v2"] .session-review-v2-segmented-control--text {
+  width: auto;
+}
+
+[data-component="session-review-v2"] [data-slot="session-review-v2-render-preview"] {
+  min-height: 100%;
+}
+
+[data-component="session-review-v2"] [data-slot="session-review-v2-html-preview"] {
+  display: block;
+  width: 100%;
+  min-height: 480px;
+  height: calc(100vh - 240px);
+  border: 0;
+  background: var(--background-base);
 }
 
 [data-component="session-review-v2"] [data-slot="session-review-v2-file-status"] {
@@ -348,8 +372,10 @@
 [data-component="session-review-v2"] [data-slot="session-review-v2-empty"] {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   padding: 24px;
   padding-bottom: 160px;
 }

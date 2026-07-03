@@ -2,6 +2,7 @@ import { FileIcon } from "@opencode-ai/ui/file-icon"
 import "@opencode-ai/ui/v2/file-tree-v2.css"
 import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { createEffect, For, Show } from "solid-js"
+import { FileTreeRowContextMenu } from "@/components/file-tree-path-menu"
 import { kindChange, kindLabel, type Kind } from "@/components/file-tree-v2"
 import { normalizePath } from "@/pages/session/v2/review-diff-kinds"
 
@@ -42,6 +43,7 @@ export function SessionFileListV2(props: {
   highlighted?: string
   kinds?: ReadonlyMap<string, Kind>
   onFileClick: (path: string) => void
+  onFileOpen?: (path: string) => void
 }) {
   const active = () => normalizePath(props.active ?? "")
   const highlighted = () => normalizePath(props.highlighted ?? "")
@@ -75,13 +77,25 @@ export function SessionFileListV2(props: {
           const directory = () => (normalized.includes("/") ? getDirectory(normalized) : undefined)
           const filename = () => getFilename(normalized)
           return (
-            <button
-              type="button"
+            <FileTreeRowContextMenu
+              path={path}
+              as="div"
+              role="button"
+              tabIndex={0}
               data-slot="file-tree-v2-row"
               data-selected={selected() ? "" : undefined}
               data-highlighted={highlightedRow() ? "" : undefined}
               style="padding-left: 8px"
               onClick={() => props.onFileClick(path)}
+              onDblClick={(event: MouseEvent) => {
+                event.preventDefault()
+                props.onFileOpen?.(path)
+              }}
+              onKeyDown={(event: KeyboardEvent) => {
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                props.onFileClick(path)
+              }}
             >
               <span class="filetree-iconpair size-4">
                 <FileIcon node={{ path, type: "file" }} class="size-4 filetree-icon filetree-icon--color" />
@@ -91,7 +105,9 @@ export function SessionFileListV2(props: {
                 <Show when={directory()}>
                   {(value) => <span class="text-12-medium text-text-muted truncate min-w-0 shrink">{value()}</span>}
                 </Show>
-                <span class="text-12-medium text-text-base truncate min-w-0 shrink-0">{filename()}</span>
+                <span data-slot="file-tree-v2-name" class="text-12-medium text-text-base truncate min-w-0 shrink-0 select-text">
+                  {filename()}
+                </span>
               </span>
               <Show when={kind()}>
                 {(value) => (
@@ -100,7 +116,7 @@ export function SessionFileListV2(props: {
                   </span>
                 )}
               </Show>
-            </button>
+            </FileTreeRowContextMenu>
           )
         }}
       </For>

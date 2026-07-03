@@ -6,7 +6,7 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
 import type { Event } from "electron"
-import { app } from "electron"
+import { app, BrowserWindow } from "electron"
 
 import { Deferred, Effect, Fiber } from "effect"
 import contextMenu from "electron-context-menu"
@@ -104,7 +104,21 @@ function ensureLoopbackNoProxy() {
 }
 
 const main = Effect.gen(function* () {
-  contextMenu({ showSaveImageAs: true, showLookUpSelection: false, showSearchWithGoogle: false })
+  contextMenu({
+    showSaveImageAs: true,
+    showLookUpSelection: false,
+    showSearchWithGoogle: false,
+    shouldShowMenu: (_event, params) => {
+      const browserWindow = BrowserWindow.getFocusedWindow()
+      if (!browserWindow) return true
+      const hit = (
+        browserWindow.webContents as unknown as { executeJavaScriptSync: (code: string) => boolean }
+      ).executeJavaScriptSync(
+        `(function(){const el=document.elementFromPoint(${params.x}, ${params.y}); return !!(el && el.closest('[data-file-tree-path]'));})()`,
+      )
+      return !hit
+    },
+  })
 
   // on macOS apps run in `/` which can cause issues with ripgrep
   try {

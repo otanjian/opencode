@@ -31,6 +31,13 @@ export const dict: Record<string, string> = {
   "ui.sessionReviewV2.empty.noGit.actionLoading": "Creating Git repository...",
   "ui.sessionReviewV2.empty.changes.title": "No file changes yet",
   "ui.sessionReviewV2.empty.changes.description": "Project changes will appear here",
+  "ui.sessionReviewV2.copyPath": "Copy path",
+  "ui.sessionReviewV2.copyFilename": "Copy filename",
+  "ui.sessionReviewV2.openWithDefaultApp": "Open with default app",
+  "ui.sessionReviewV2.viewDiff": "Diff",
+  "ui.sessionReviewV2.viewPreview": "Preview",
+  "ui.sessionReviewV2.openInBrowser": "Open in browser",
+  "ui.sessionReviewV2.previewMode": "Preview mode",
 
   "ui.sessionReview.openFile": "Open file",
   "ui.sessionReview.selection.line": "line {{line}}",

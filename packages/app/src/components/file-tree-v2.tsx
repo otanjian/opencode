@@ -27,6 +27,7 @@ import {
   type Filter,
   type Kind,
 } from "@/components/file-tree"
+import { FileTreeRowContextMenu } from "@/components/file-tree-path-menu"
 
 export type { Kind } from "@/components/file-tree"
 
@@ -163,7 +164,9 @@ const FileTreeNodeV2 = (
       {...rest}
     >
       {local.children}
-      <span class="flex-1 min-w-0 text-12-medium whitespace-nowrap truncate">{local.node.name}</span>
+      <span data-slot="file-tree-v2-name" class="flex-1 min-w-0 text-12-medium whitespace-nowrap truncate select-text">
+        {local.node.name}
+      </span>
       {(() => {
         const value = kind()
         if (!value || local.node.type !== "file") return null
@@ -188,6 +191,7 @@ export default function FileTreeV2(props: {
   kinds?: ReadonlyMap<string, Kind>
   draggable?: boolean
   onFileClick?: (file: FileNode) => void
+  onFileOpen?: (file: FileNode) => void
 
   _filter?: Filter
   _marks?: Set<string>
@@ -375,6 +379,7 @@ export default function FileTreeV2(props: {
                           active={props.active}
                           draggable={props.draggable}
                           onFileClick={props.onFileClick}
+                          onFileOpen={props.onFileOpen}
                           _filter={filter()}
                           _marks={marks()}
                           _deeps={deeps()}
@@ -387,16 +392,33 @@ export default function FileTreeV2(props: {
                 </Collapsible>
               </Match>
               <Match when={node.type === "file"}>
-                <FileTreeNodeV2
-                  node={node}
-                  level={level}
-                  active={props.active}
+                <FileTreeRowContextMenu
+                  path={node.path}
+                  as="div"
+                  role="button"
+                  tabIndex={0}
+                  data-slot="file-tree-v2-row"
+                  data-selected={node.path === props.active ? "" : undefined}
+                  data-ignored={node.ignored ? "" : undefined}
+                  style={`padding-left: ${rowPaddingLeft(level, node.type)}px`}
                   draggable={draggable()}
-                  kinds={kinds()}
-                  marks={marks()}
-                  as="button"
-                  type="button"
+                  onDragStart={(event: DragEvent) => {
+                    if (!draggable()) return
+                    event.dataTransfer?.setData("text/plain", `file:${node.path}`)
+                    event.dataTransfer?.setData("text/uri-list", pathToFileUrl(node.path))
+                    if (event.dataTransfer) event.dataTransfer.effectAllowed = "copy"
+                    withFileDragImage(event)
+                  }}
                   onClick={() => props.onFileClick?.(node)}
+                  onDblClick={(event: MouseEvent) => {
+                    event.preventDefault()
+                    props.onFileOpen?.(node)
+                  }}
+                  onKeyDown={(event: KeyboardEvent) => {
+                    if (event.key !== "Enter" && event.key !== " ") return
+                    event.preventDefault()
+                    props.onFileClick?.(node)
+                  }}
                 >
                   <Show when={level > 0}>
                     <div class="w-4 shrink-0" />
@@ -410,7 +432,19 @@ export default function FileTreeV2(props: {
                       <FileIcon node={node} class="size-4 filetree-icon filetree-icon--mono" mono />
                     </span>
                   </Show>
-                </FileTreeNodeV2>
+                  <span data-slot="file-tree-v2-name" class="flex-1 min-w-0 text-12-medium whitespace-nowrap truncate select-text">
+                    {node.name}
+                  </span>
+                  {(() => {
+                    const value = visibleKind(node, kinds(), marks())
+                    if (!value) return null
+                    return (
+                      <span data-slot="file-tree-v2-change" data-change={kindChange(value)}>
+                        {kindLabel(value)}
+                      </span>
+                    )
+                  })()}
+                </FileTreeRowContextMenu>
               </Match>
             </Switch>
           )

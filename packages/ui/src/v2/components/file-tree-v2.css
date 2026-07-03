@@ -20,9 +20,15 @@
   color: var(--v2-text-text-muted);
   text-align: left;
   cursor: pointer;
+  user-select: none;
   transition:
     background-color 120ms ease,
     color 120ms ease;
+}
+
+[data-component="file-tree-v2"] [data-slot="file-tree-v2-name"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 [data-component="file-tree-v2"] [data-slot="file-tree-v2-row"][data-ignored] {

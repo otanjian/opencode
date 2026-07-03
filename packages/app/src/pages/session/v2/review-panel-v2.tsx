@@ -39,6 +39,10 @@ export type ReviewPanelV2Props = {
   diffsReady: () => boolean
   activeFile?: string
   onSelectFile: (path: string) => void
+  onOpenFile?: (path: string) => void
+  onOpenExternal?: (path: string) => void
+  onOpenInBrowser?: (path: string) => void
+  canOpenExternal?: () => boolean
   diffStyle: SessionReviewDiffStyle
   onDiffStyleChange?: (style: SessionReviewDiffStyle) => void
   state: ReviewPanelV2State
@@ -102,6 +106,7 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
           state={props.state}
           diffsReady={props.diffsReady}
           onSelectFile={props.onSelectFile}
+          onOpenFile={props.onOpenFile}
           diffs={diffs}
           filteredFiles={filteredFiles}
           searching={searching}
@@ -130,6 +135,10 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
                   diffStyle={props.diffStyle}
                   expandMode={props.state.expandMode()}
                   readFile={readFile}
+                  onViewFile={props.onOpenFile}
+                  onOpenExternal={props.onOpenExternal}
+                  onOpenInBrowser={props.onOpenInBrowser}
+                  canOpenExternal={props.canOpenExternal}
                   onLineComment={props.onLineComment}
                   onLineCommentUpdate={props.onLineCommentUpdate}
                   onLineCommentDelete={props.onLineCommentDelete}
@@ -152,6 +161,7 @@ function ReviewPanelV2Sidebar(props: {
   state: ReviewPanelV2State
   diffsReady: () => boolean
   onSelectFile: (path: string) => void
+  onOpenFile?: (path: string) => void
   diffs: () => RenderDiff[]
   filteredFiles: () => string[]
   searching: () => boolean
@@ -209,6 +219,7 @@ function ReviewPanelV2Sidebar(props: {
               draggable={false}
               active={props.activeDiff()}
               onFileClick={(node) => props.onSelectFile(node.path)}
+              onFileOpen={(node) => props.onOpenFile?.(node.path)}
             />
           }
         >
@@ -225,6 +236,7 @@ function ReviewPanelV2Sidebar(props: {
                 setExplicitHighlight(path)
                 props.onSelectFile(path)
               }}
+              onFileOpen={(path) => props.onOpenFile?.(path)}
             />
           </Show>
         </Show>

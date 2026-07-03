@@ -72,6 +72,7 @@ import {
   shouldFocusTerminalOnKeyDown,
   shouldShowFileTree,
 } from "@/pages/session/helpers"
+import { absoluteProjectPath, resolveFileOpenAction } from "@/pages/session/file-open-action"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
 import { createTimelineModel } from "@/pages/session/timeline/model"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
@@ -352,6 +353,7 @@ export default function Page() {
   const serverSDK = useServerSDK()
   const settings = useSettings()
   const platform = usePlatform()
+  const server = useServer()
   const prompt = usePrompt()
   const comments = useComments()
   const terminal = useTerminal()
@@ -1180,7 +1182,21 @@ export default function Page() {
     get activeFile() {
       return tree.activeDiff
     },
-    onSelectFile: focusReviewDiff,
+    get onSelectFile() {
+      return selectReviewFile
+    },
+    get onOpenFile() {
+      return openReviewFileAction
+    },
+    get onOpenExternal() {
+      return openExternalFile
+    },
+    get onOpenInBrowser() {
+      return openExternalFile
+    },
+    get canOpenExternal() {
+      return canOpenExternal
+    },
     get diffStyle() {
       return layout.review.diffStyle()
     },
@@ -1289,6 +1305,36 @@ export default function Page() {
     openReviewPanel()
     view().review.openPath(path)
     setTree({ activeDiff: path, pendingDiff: path })
+  }
+
+  const canOpenExternal = () => platform.platform === "desktop" && !!platform.openPath && server.isLocal()
+
+  const openExternalFile = (path: string) => {
+    if (!canOpenExternal() || !platform.openPath) return
+    void platform
+      .openPath(absoluteProjectPath(sdk().directory, path))
+      .catch((err: unknown) => {
+        showToast({
+          variant: "error",
+          title: language.t("toast.file.loadFailed.title"),
+          description: formatServerError(err, language.t),
+        })
+      })
+  }
+
+  const selectReviewFile = (path: string) => {
+    if (resolveFileOpenAction(path).kind === "external" && canOpenExternal()) openExternalFile(path)
+    focusReviewDiff(path)
+  }
+
+  const openReviewFileAction = (path: string) => {
+    const action = resolveFileOpenAction(path)
+    if (action.kind === "external") {
+      if (canOpenExternal()) openExternalFile(path)
+      else focusReviewDiff(path)
+      return
+    }
+    openReviewFile(path)
   }
 
   createEffect(() => {

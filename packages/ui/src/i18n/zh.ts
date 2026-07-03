@@ -29,6 +29,13 @@ export const dict = {
   "ui.fileMedia.binary.title": "二进制文件",
   "ui.fileMedia.binary.description.path": "无法显示 {{path}}，因为它是二进制文件。",
   "ui.fileMedia.binary.description.default": "无法显示此文件，因为它是二进制文件。",
+  "ui.sessionReviewV2.copyPath": "复制路径",
+  "ui.sessionReviewV2.copyFilename": "复制文件名",
+  "ui.sessionReviewV2.openWithDefaultApp": "用默认应用打开",
+  "ui.sessionReviewV2.viewDiff": "差异",
+  "ui.sessionReviewV2.viewPreview": "预览",
+  "ui.sessionReviewV2.openInBrowser": "在浏览器中打开",
+  "ui.sessionReviewV2.previewMode": "预览模式",
 
   "ui.lineComment.label.prefix": "评论 ",
   "ui.lineComment.label.suffix": "",
