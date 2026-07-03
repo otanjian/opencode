@@ -291,7 +291,6 @@
   display: block;
   width: 100%;
   min-height: 480px;
-  height: calc(100vh - 240px);
   border: 0;
   background: var(--background-base);
 }
