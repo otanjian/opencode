@@ -1,7 +1,7 @@
 {
   "name": "@opencode-ai/desktop",
   "private": true,
-  "version": "1.17.13",
+  "version": "1.0.0",
   "type": "module",
   "license": "MIT",
   "homepage": "https://opencode.ai",
@@ -20,6 +20,10 @@
     "package:mac": "electron-builder --mac --config electron-builder.config.ts",
     "package:win": "electron-builder --win --config electron-builder.config.ts",
     "package:linux": "electron-builder --linux --config electron-builder.config.ts",
+    "release:manual": "bun ./scripts/manual-release.ts",
+    "release:manual:build": "bun ./scripts/manual-release.ts --build-only",
+    "release:manual:upload": "bun ./scripts/manual-release.ts --upload-only",
+    "release:manual:all": "bun ./scripts/manual-release.ts --platform mac,win,linux",
     "native:build": "bun install --cwd native"
   },
   "main": "./out/main/index.js",

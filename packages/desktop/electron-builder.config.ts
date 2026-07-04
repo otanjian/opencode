@@ -38,6 +38,32 @@ const APP_IDS = {
   prod: "ai.opencode.desktop",
 } as const
 
+function githubPublish(defaultOwner: string, defaultRepo: string) {
+  const ghRepo = process.env.GH_REPO
+  if (ghRepo) {
+    const slash = ghRepo.indexOf("/")
+    if (slash !== -1) {
+      return {
+        provider: "github" as const,
+        owner: ghRepo.slice(0, slash),
+        repo: ghRepo.slice(slash + 1),
+        channel: "latest" as const,
+      }
+    }
+  }
+
+  return {
+    provider: "github" as const,
+    owner: process.env.OPENCODE_GITHUB_OWNER ?? defaultOwner,
+    repo: process.env.OPENCODE_GITHUB_REPO ?? defaultRepo,
+    channel: "latest" as const,
+  }
+}
+
+const notarize =
+  process.env.OPENCODE_NOTARIZE !== "false" && process.env.CSC_IDENTITY_AUTO_DISCOVERY !== "false"
+const signArtifacts = process.env.CSC_IDENTITY_AUTO_DISCOVERY !== "false"
+
 const getBase = (appId: string): Configuration => ({
   artifactName: "opencode-desktop-${os}-${arch}.${ext}",
   directories: {
@@ -67,11 +93,11 @@ const getBase = (appId: string): Configuration => ({
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
-    notarize: true,
+    notarize,
     target: ["dmg", "zip"],
   },
   dmg: {
-    sign: true,
+    sign: signArtifacts,
   },
   protocols: {
     name: "OpenCode",
@@ -125,7 +151,7 @@ function getConfig() {
         appId,
         productName: "OpenCode Beta",
         protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode-beta", channel: "latest" },
+        publish: githubPublish("anomalyco", "opencode-beta"),
         rpm: { packageName: "opencode-beta" },
       }
     }
@@ -135,7 +161,7 @@ function getConfig() {
         appId,
         productName: "OpenCode",
         protocols: { name: "OpenCode", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode", channel: "latest" },
+        publish: githubPublish("anomalyco", "opencode"),
         deb: { fpm: [legacyDesktopEntryFpm] },
         rpm: { packageName: "opencode", fpm: [legacyDesktopEntryFpm] },
       }

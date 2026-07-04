@@ -1,0 +1,101 @@
+name: desktop-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.0)"
+        required: true
+        type: string
+      repo:
+        description: "GitHub repo owner/name"
+        required: false
+        default: otanjian/opencode
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            platform: mac
+            platform_flag: --mac --arm64
+          - os: windows-2025
+            platform: win
+            platform_flag: --win --x64
+          - os: ubuntu-24.04
+            platform: linux
+            platform_flag: --linux --x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Prepare
+        working-directory: packages/desktop
+        env:
+          OPENCODE_VERSION: ${{ inputs.version }}
+          OPENCODE_CHANNEL: prod
+        run: bun ./scripts/prepare.ts
+
+      - name: Build
+        working-directory: packages/desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          OPENCODE_CHANNEL: prod
+        run: bun run build
+
+      - name: Package
+        working-directory: packages/desktop
+        env:
+          OPENCODE_CHANNEL: prod
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          OPENCODE_NOTARIZE: "false"
+        run: bunx electron-builder ${{ matrix.platform_flag }} --publish never --config electron-builder.config.ts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: |
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.zip
+            packages/desktop/dist/*.exe
+            packages/desktop/dist/*.AppImage
+            packages/desktop/dist/*.deb
+            packages/desktop/dist/*.rpm
+            packages/desktop/dist/latest*.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: /tmp/desktop
+          merge-multiple: true
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v${{ inputs.version }}"
+          repo="${{ inputs.repo }}"
+          gh release view "$tag" --repo "$repo" >/dev/null 2>&1 || \
+            gh release create "$tag" --repo "$repo" --title "$tag" --notes "OpenCode Desktop $tag"
+          shopt -s nullglob
+          files=(/tmp/desktop/*)
+          gh release upload "$tag" "${files[@]}" --repo "$repo" --clobber

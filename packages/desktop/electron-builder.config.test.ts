@@ -46,3 +46,25 @@ test("keeps a hidden prod launcher for old Linux pins", async () => {
   expect(desktop).toContain("StartupWMClass=ai.opencode.desktop")
   expect(desktop).toContain("NoDisplay=true")
 })
+
+test("uses GH_REPO for the GitHub publish config", async () => {
+  const previousChannel = process.env.OPENCODE_CHANNEL
+  const previousGhRepo = process.env.GH_REPO
+  process.env.OPENCODE_CHANNEL = "prod"
+  process.env.GH_REPO = "example/custom-opencode"
+
+  const module = await import("./electron-builder.config.ts?publish=custom")
+  const config = module.default as Configuration
+
+  if (previousChannel === undefined) delete process.env.OPENCODE_CHANNEL
+  else process.env.OPENCODE_CHANNEL = previousChannel
+  if (previousGhRepo === undefined) delete process.env.GH_REPO
+  else process.env.GH_REPO = previousGhRepo
+
+  expect(config.publish).toEqual({
+    provider: "github",
+    owner: "example",
+    repo: "custom-opencode",
+    channel: "latest",
+  })
+})
