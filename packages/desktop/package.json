@@ -1,7 +1,7 @@
 {
   "name": "@opencode-ai/desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.18.19",
   "type": "module",
   "license": "MIT",
   "homepage": "https://opencode.ai",
@@ -20,10 +20,6 @@
     "package:mac": "electron-builder --mac --config electron-builder.config.ts",
     "package:win": "electron-builder --win --config electron-builder.config.ts",
     "package:linux": "electron-builder --linux --config electron-builder.config.ts",
-    "release:manual": "bun ./scripts/manual-release.ts",
-    "release:manual:build": "bun ./scripts/manual-release.ts --build-only",
-    "release:manual:upload": "bun ./scripts/manual-release.ts --upload-only",
-    "release:manual:all": "bun ./scripts/manual-release.ts --platform mac,win,linux",
     "native:build": "bun install --cwd native"
   },
   "main": "./out/main/index.js",
@@ -35,7 +31,7 @@
     "electron-store": "11.0.2",
     "electron-updater": "6.8.9",
     "electron-window-state": "^5.0.3",
-    "marked": "^15"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@actions/artifact": "4.0.0",
