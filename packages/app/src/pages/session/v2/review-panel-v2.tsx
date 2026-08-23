@@ -156,10 +156,6 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
                   diffStyle={props.diffStyle}
                   expandMode={props.state.expandMode()}
                   readFile={readFile}
-                  onViewFile={props.onOpenFile}
-                  onOpenExternal={props.onOpenExternal}
-                  onOpenInBrowser={props.onOpenInBrowser}
-                  canOpenExternal={props.canOpenExternal}
                   onLineComment={props.onLineComment}
                   onLineCommentUpdate={props.onLineCommentUpdate}
                   onLineCommentDelete={props.onLineCommentDelete}
@@ -240,7 +236,7 @@ function ReviewPanelV2Sidebar(props: {
               draggable={false}
               active={props.activeDiff()}
               onFileClick={(node) => props.onSelectFile(node.path)}
-              onFileOpen={(node) => props.onOpenFile?.(node.path)}
+              onFileDoubleClick={(node) => props.onOpenFile?.(node.path)}
             />
           }
         >
@@ -257,7 +253,7 @@ function ReviewPanelV2Sidebar(props: {
                 setExplicitHighlight(path)
                 props.onSelectFile(path)
               }}
-              onFileOpen={(path) => props.onOpenFile?.(path)}
+              onFileDoubleClick={(path) => props.onOpenFile?.(path)}
             />
           </Show>
         </Show>
