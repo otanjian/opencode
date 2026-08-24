@@ -1,0 +1,75 @@
+html[data-buildingai-embed] {
+  color-scheme: light;
+  --font-family-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  --font-family-text:
+    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  --v2-font-family-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace !important;
+
+  --background-base: #ffffff !important;
+  --background-weak: #f5f5f5 !important;
+  --background-strong: #ffffff !important;
+  --background-stronger: #ffffff !important;
+  --surface-base: #f5f5f5 !important;
+  --surface-raised-base: #ffffff !important;
+  --surface-raised-strong: #ffffff !important;
+  --surface-raised-stronger: #ffffff !important;
+  --text-strong: #171717 !important;
+  --text-base: #404040 !important;
+  --text-weak: #737373 !important;
+  --border-base: #e5e5e5 !important;
+  --border-weak-base: #e5e5e5 !important;
+  --border-weaker-base: #eeeeee !important;
+
+  --v2-background-bg-base: #ffffff !important;
+  --v2-background-bg-deep: #f5f5f5 !important;
+  --v2-background-bg-layer-01: #f5f5f5 !important;
+  --v2-background-bg-layer-02: #eeeeee !important;
+  --v2-text-text-base: #171717 !important;
+  --v2-text-text-muted: #737373 !important;
+  --v2-text-text-faint: #a3a3a3 !important;
+  --v2-border-border-muted: rgba(0, 0, 0, 0.06) !important;
+  --v2-border-border-base: rgba(0, 0, 0, 0.1) !important;
+  --v2-border-border-strong: rgba(0, 0, 0, 0.16) !important;
+}
+
+html[data-buildingai-embed],
+html[data-buildingai-embed] body,
+html[data-buildingai-embed] #root {
+  background: var(--v2-background-bg-base) !important;
+  color: var(--v2-text-text-base);
+  font-family: var(--font-family-sans);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-buildingai-embed] {
+    color-scheme: dark;
+    --background-base: #171717 !important;
+    --background-weak: #262626 !important;
+    --background-strong: #171717 !important;
+    --background-stronger: #171717 !important;
+    --surface-base: #262626 !important;
+    --surface-raised-base: #262626 !important;
+    --surface-raised-strong: #262626 !important;
+    --surface-raised-stronger: #262626 !important;
+    --text-strong: #fafafa !important;
+    --text-base: #e5e5e5 !important;
+    --text-weak: #a3a3a3 !important;
+    --border-base: rgba(255, 255, 255, 0.1) !important;
+    --border-weak-base: rgba(255, 255, 255, 0.1) !important;
+    --border-weaker-base: rgba(255, 255, 255, 0.06) !important;
+
+    --v2-background-bg-base: #171717 !important;
+    --v2-background-bg-deep: #0a0a0a !important;
+    --v2-background-bg-layer-01: #262626 !important;
+    --v2-background-bg-layer-02: #303030 !important;
+    --v2-text-text-base: #fafafa !important;
+    --v2-text-text-muted: #a3a3a3 !important;
+    --v2-text-text-faint: #737373 !important;
+    --v2-border-border-muted: rgba(255, 255, 255, 0.06) !important;
+    --v2-border-border-base: rgba(255, 255, 255, 0.1) !important;
+    --v2-border-border-strong: rgba(255, 255, 255, 0.16) !important;
+  }
+}

@@ -4,6 +4,7 @@ import { Cause, Effect, Schema } from "effect"
 import { CodeMode, Tool as SandboxTool, toolError } from "@opencode-ai/codemode"
 import { MCP } from "@/mcp"
 import { McpCatalog } from "@/mcp/catalog"
+import { buildingAIInvocationMeta } from "@/mcp/buildingai"
 import { Agent } from "@/agent/agent"
 import { Session } from "@/session/session"
 import { Permission } from "@/permission"
@@ -32,6 +33,7 @@ type CatalogEntry = {
   path: string
   key: string
   server: string
+  client: string
   local: string
   tool: MCP.McpTool
 }
@@ -40,6 +42,7 @@ function groupByServer(mcpTools: Record<string, MCP.McpTool>, servers: readonly 
   const byLongest = [...servers].sort((a, b) => b.length - a.length)
   const groups = new Map<string, CatalogEntry[]>()
   for (const key of Object.keys(mcpTools).sort((a, b) => a.localeCompare(b))) {
+    const tool = mcpTools[key]!
     const server =
       byLongest.find((name) => key.startsWith(name + "_")) ?? (key.includes("_") ? key.slice(0, key.indexOf("_")) : key)
     const local = server && key.startsWith(server + "_") ? key.slice(server.length + 1) : key
@@ -47,8 +50,9 @@ function groupByServer(mcpTools: Record<string, MCP.McpTool>, servers: readonly 
       path: `${server}.${local}`,
       key,
       server,
+      client: tool.server ?? server,
       local,
-      tool: mcpTools[key]!,
+      tool,
     }
     groups.set(server, [...(groups.get(server) ?? []), entry])
   }
@@ -148,7 +152,14 @@ const invokeChildTool = Effect.fn("CodeMode.invokeChildTool")(function* (input: 
     // Deliberately mirrors McpCatalog.convertTool's transport call so the MCP service stays free of tool-loop concerns.
     return yield* Effect.promise(async () => {
       const raw = await input.entry.tool.client.callTool(
-        { name: input.entry.tool.def.name, arguments: input.args },
+        {
+          name: input.entry.tool.def.name,
+          arguments: input.args,
+          ...(() => {
+            const meta = buildingAIInvocationMeta(input.entry.client, input.ctx.sessionID, input.callID)
+            return meta ? { _meta: meta } : {}
+          })(),
+        },
         CallToolResultSchema,
         {
           resetTimeoutOnProgress: true,

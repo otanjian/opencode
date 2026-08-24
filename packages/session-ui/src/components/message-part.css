@@ -317,6 +317,32 @@
   }
 }
 
+[data-component="reasoning-part"][data-buildingai-embed-reasoning] {
+  overflow: hidden;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 10px;
+  background: var(--v2-background-bg-layer-01);
+
+  [data-slot="reasoning-part-summary"] {
+    cursor: pointer;
+    padding: 9px 12px;
+    color: var(--v2-text-text-muted);
+    font-family: var(--v2-font-family-sans);
+    font-size: 12px;
+    font-weight: 500;
+    user-select: none;
+  }
+
+  [data-slot="reasoning-part-body"] {
+    border-top: 1px solid var(--v2-border-border-base);
+    padding: 0 12px 12px;
+  }
+
+  [data-component="markdown"] {
+    margin-top: 12px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   [data-component="reasoning-part"] [data-component="markdown"] :not(pre) > code {
     opacity: 0.6;

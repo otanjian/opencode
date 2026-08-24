@@ -94,6 +94,38 @@ async function failure(effect: Effect.Effect<unknown>) {
 }
 
 describe("code mode execute", () => {
+  test("sends hidden BuildingAI context to bowi tools", async () => {
+    let request: Record<string, unknown> | undefined
+    const todoSearch: MCP.McpTool = {
+      def: {
+        name: "todo_search",
+        description: "Search personal todos",
+        inputSchema: { type: "object", properties: {} },
+      } as MCPToolDef,
+      client: {
+        callTool: async (input: Record<string, unknown>) => {
+          request = input
+          return { content: [{ type: "text", text: "[]" }] }
+        },
+      } as unknown as MCP.McpTool["client"],
+      server: "bowi",
+    }
+    const codeMode = await build({ bowi_todo_search: todoSearch }, ["bowi"])
+
+    await Effect.runPromise(codeMode.execute({ code: "return await tools.bowi.todo_search({})" }, ctx))
+
+    expect(request).toEqual({
+      name: "todo_search",
+      arguments: {},
+      _meta: {
+        buildingai: {
+          sessionId: "ses_code-mode",
+          callId: "call_code_mode/1",
+        },
+      },
+    })
+  })
+
   test("defines execute input with an Effect schema", async () => {
     const decode = Schema.decodeUnknownEffect(Parameters)
     await expect(Effect.runPromise(decode({ code: "return 1" }))).resolves.toEqual({ code: "return 1" })

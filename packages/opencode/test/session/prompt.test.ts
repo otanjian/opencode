@@ -580,6 +580,29 @@ withMcpInstructions.instance(
   15_000,
 )
 
+it.instance("loop includes BuildingAI session context metadata in model system context", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({
+      title: "BuildingAI context",
+      metadata: {
+        "buildingai.systemContext": "login username: S2385\nSAP connection: conn=/H/sap",
+      },
+    })
+    yield* llm.text("done")
+    yield* user(chat.id, "count purchase orders")
+
+    yield* prompt.loop({ sessionID: chat.id })
+
+    const body = JSON.stringify((yield* llm.inputs).at(-1))
+    expect(body).toContain("<buildingai_session_context>")
+    expect(body).toContain("login username: S2385")
+    expect(body).toContain("SAP connection: conn=/H/sap")
+  }),
+)
+
 it.instance("legacy prompt emits message events without session.next events", () =>
   Effect.gen(function* () {
     const events = yield* EventV2Bridge.Service

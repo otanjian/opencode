@@ -14,6 +14,7 @@ import { type Tool as AITool, tool, jsonSchema } from "ai"
 import type { JSONSchema7 } from "@ai-sdk/provider"
 import { SessionCompaction } from "./compaction"
 import { SystemPrompt } from "./system"
+import { getBuildingAIContext, getBuildingAIManagedCredentialInstructions } from "./buildingai-context"
 import { Instruction } from "./instruction"
 import { Plugin } from "../plugin"
 import { MAX_STEPS_PROMPT } from "@opencode-ai/core/session/runner/max-steps"
@@ -1261,11 +1262,17 @@ const layer = Layer.effect(
               sys.mcp(agent, session.permission),
               MessageV2.toModelMessagesEffect(msgs, model),
             ])
+            const buildingAIContext = getBuildingAIContext(session.metadata)
+            const buildingAIManagedCredentials = getBuildingAIManagedCredentialInstructions(session.metadata)
             const system = [
               ...env,
               ...instructions,
               ...(mcpInstructions ? [mcpInstructions] : []),
               ...(skills ? [skills] : []),
+              ...(buildingAIContext
+                ? [`<buildingai_session_context>\n${buildingAIContext}\n</buildingai_session_context>`]
+                : []),
+              ...(buildingAIManagedCredentials ? [buildingAIManagedCredentials] : []),
             ]
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)

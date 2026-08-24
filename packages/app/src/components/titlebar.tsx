@@ -5,6 +5,7 @@ import {
   createSignal,
   Match,
   on,
+  onCleanup,
   onMount,
   Show,
   Switch,
@@ -39,6 +40,7 @@ import type { PromptSession } from "@/context/prompt"
 import "./titlebar.css"
 import { newTabTooltipKeybind } from "./command-tooltip-keybind"
 import { normalizeSessionInfo } from "@/utils/session"
+import { isBuildingAIEmbedSearch } from "@/utils/buildingai-embed"
 
 const legacyTitlebarHeight = 40
 const v2TitlebarHeight = 36
@@ -74,6 +76,11 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
   const useV2Titlebar = createMemo(() => settings.general.newLayoutDesigns())
   const mobile = createMediaQuery("(max-width: 767px)")
   const bottom = createMemo(() => useV2Titlebar() && mobile() && settings.general.mobileTitlebarPosition() === "bottom")
+
+  createEffect(() => {
+    document.documentElement.toggleAttribute("data-buildingai-embed", isBuildingAIEmbedSearch(location.search))
+  })
+  onCleanup(() => document.documentElement.removeAttribute("data-buildingai-embed"))
 
   const mac = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   const windows = createMemo(() => platform.platform === "desktop" && platform.os === "windows")
@@ -167,6 +174,10 @@ export function Titlebar(props: { update?: TitlebarUpdate; debugTools?: { visibl
       onSelect: forward,
     },
   ])
+
+  // BuildingAI owns the navigation/header around embedded OpenCode sessions.
+  // Keep the normal titlebar for direct OpenCode Web routes.
+  if (isBuildingAIEmbedSearch(location.search)) return null
 
   return (
     <header

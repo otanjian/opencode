@@ -32,6 +32,7 @@ import { markdownBlockKey, type MarkdownToken } from "./markdown-worker-protocol
 import { shouldResetCodeTokens, type RenderedCodeState } from "./markdown-code-state"
 import { getCachedMarkdown, sanitizeMarkdown, touchCachedMarkdown, type MarkdownCacheEntry } from "./markdown-cache"
 import { inlineCodeKind } from "./markdown-inline-code-kind"
+import { activateMarkdownPath, markdownPathActionAttributes, type MarkdownPathAction } from "./markdown-path-action"
 
 type RenderedBlock =
   | (MarkdownCacheEntry & { key: string; mode: Exclude<Block["mode"], "code"> })
@@ -265,24 +266,62 @@ function markCodeLinks(root: HTMLDivElement) {
   }
 }
 
-function markInlineCode(root: HTMLDivElement) {
+function markInlineCode(root: HTMLDivElement, action: MarkdownPathAction | undefined) {
   const codeNodes = Array.from(root.querySelectorAll(":not(pre) > code"))
   for (const code of codeNodes) {
     if (!(code instanceof HTMLElement)) continue
     delete code.dataset.inlineCodeKind
     const kind = inlineCodeKind(code.textContent ?? "")
     if (kind) code.dataset.inlineCodeKind = kind
+    const attributes = markdownPathActionAttributes(code.textContent ?? "", action)
+    if (!attributes) {
+      delete code.dataset.markdownPathAction
+      code.removeAttribute("role")
+      code.removeAttribute("tabindex")
+      code.removeAttribute("aria-label")
+      continue
+    }
+    code.dataset.markdownPathAction = ""
+    code.setAttribute("role", attributes.role)
+    code.tabIndex = attributes.tabIndex
+    code.setAttribute("aria-label", attributes.ariaLabel)
   }
 }
 
-function decorate(root: HTMLDivElement, labels: CopyLabels) {
+function decorate(root: HTMLDivElement, labels: CopyLabels, action?: MarkdownPathAction) {
   const blocks = Array.from(root.querySelectorAll("pre"))
   for (const block of blocks) {
     ensureCodeWrapper(block, labels)
   }
   if (!document.body.hasAttribute("data-new-layout")) return
-  markInlineCode(root)
+  markInlineCode(root, action)
   markCodeLinks(root)
+}
+
+function setupPathAction(root: HTMLDivElement, getAction: () => MarkdownPathAction | undefined) {
+  const target = (value: EventTarget | null) => {
+    if (!(value instanceof Element)) return
+    const code = value.closest("code[data-markdown-path-action]")
+    if (!(code instanceof HTMLElement) || !root.contains(code)) return
+    return code
+  }
+  const click = (event: MouseEvent) => {
+    const code = target(event.target)
+    if (!code) return
+    activateMarkdownPath({ kind: "click", value: code.textContent ?? "", action: getAction() })
+  }
+  const keydown = (event: KeyboardEvent) => {
+    const code = target(event.target)
+    if (!code) return
+    if (!activateMarkdownPath({ kind: event.key, value: code.textContent ?? "", action: getAction() })) return
+    event.preventDefault()
+  }
+  root.addEventListener("click", click)
+  root.addEventListener("keydown", keydown)
+  return () => {
+    root.removeEventListener("click", click)
+    root.removeEventListener("keydown", keydown)
+  }
 }
 
 function setupCodeCopy(root: HTMLDivElement, getLabels: () => CopyLabels) {
@@ -366,11 +405,12 @@ export function Markdown(
     text: string
     cacheKey?: string
     streaming?: boolean
+    pathAction?: MarkdownPathAction
     class?: string
     classList?: Record<string, boolean>
   },
 ) {
-  const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "class", "classList"])
+  const [local, others] = splitProps(props, ["text", "cacheKey", "streaming", "pathAction", "class", "classList"])
   const i18n = useI18n()
   const [root, setRoot] = createSignal<HTMLDivElement>()
   const owner = createUniqueId()
@@ -491,6 +531,7 @@ export function Markdown(
   )
 
   let copyCleanup: (() => void) | undefined
+  let pathActionCleanup: (() => void) | undefined
 
   createEffect(() => {
     const container = root()
@@ -509,13 +550,14 @@ export function Markdown(
       copy: i18n.t("ui.message.copy"),
       copied: i18n.t("ui.message.copied"),
     }
+    const pathAction = local.pathAction
     const nextCodeKeys = new Set(content.filter((block) => block.mode === "code").map((block) => block.key))
     activeCodeKeys.forEach((key) => {
       if (!nextCodeKeys.has(key)) disposeCode(key)
     })
     activeCodeKeys.clear()
     nextCodeKeys.forEach((key) => activeCodeKeys.add(key))
-    content.forEach((block, index) => updateBlock(container, index, block, labels))
+    content.forEach((block, index) => updateBlock(container, index, block, labels, pathAction))
     while (container.children.length > content.length) {
       const child = container.lastElementChild
       if (!child) break
@@ -530,10 +572,13 @@ export function Markdown(
         copy: i18n.t("ui.message.copy"),
         copied: i18n.t("ui.message.copied"),
       }))
+    if (document.body.hasAttribute("data-new-layout") || pathAction) markInlineCode(container, pathAction)
+    if (!pathActionCleanup) pathActionCleanup = setupPathAction(container, () => local.pathAction)
   })
 
   onCleanup(() => {
     if (copyCleanup) copyCleanup()
+    if (pathActionCleanup) pathActionCleanup()
     disposeMarkdownProjection(owner)
     activeCodeKeys.forEach(disposeCode)
     completedCode.clear()
@@ -586,7 +631,13 @@ function disposeCode(key: string) {
   disposeStreamingCode(key)
 }
 
-function updateBlock(container: HTMLDivElement, index: number, block: RenderedBlock, labels: CopyLabels) {
+function updateBlock(
+  container: HTMLDivElement,
+  index: number,
+  block: RenderedBlock,
+  labels: CopyLabels,
+  pathAction?: MarkdownPathAction,
+) {
   const current = container.children[index]
   if (block.mode === "code") {
     updateCodeBlock(container, current, block, labels)
@@ -605,7 +656,7 @@ function updateBlock(container: HTMLDivElement, index: number, block: RenderedBl
   next.dataset.markdownHash = block.hash
   next.style.display = "contents"
   next.innerHTML = block.html
-  decorate(next, labels)
+  decorate(next, labels, pathAction)
 
   if (!(current instanceof HTMLDivElement)) {
     container.appendChild(next)

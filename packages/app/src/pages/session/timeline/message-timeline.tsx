@@ -40,6 +40,7 @@ import { DialogFooter, DialogHeader, DialogTitleGroup, DialogV2 } from "@opencod
 import { InlineInput } from "@opencode-ai/ui/inline-input"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { SessionRetry } from "@opencode-ai/session-ui/session-retry"
+import { createChangedFilesDisclosure } from "@opencode-ai/session-ui/changed-files-disclosure"
 import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@opencode-ai/ui/scroll-view"
 import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
 import { TextField } from "@opencode-ai/ui/text-field"
@@ -59,6 +60,19 @@ import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { normalize } from "@opencode-ai/session-ui/session-diff"
 import { useFileComponent } from "@opencode-ai/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
+import {
+  isBuildingAIEmbedSearch,
+  resolveBuildingAIEmbedShell,
+  resolveBuildingAIToolDefaults,
+} from "@/utils/buildingai-embed"
+import {
+  buildBuildingAIReportUrl,
+  embeddedHtmlArtifactPath,
+  htmlArtifactPath,
+  openHtmlArtifactPreview,
+  workspaceHtmlArtifactPath,
+  type HtmlArtifactPreviewLabels,
+} from "@/utils/html-artifact-preview"
 import { SessionContextUsage } from "@/components/session-context-usage"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
@@ -142,13 +156,17 @@ function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSu
   )
 }
 
-function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
+function TimelineDiffSummaryRow(props: {
+  diffs: SummaryDiff[]
+  htmlPreview?: { label: string; open: (path: string) => void }
+}) {
   const language = useLanguage()
   const maxFiles = 10
   const [state, setState] = createStore({
     showAll: false,
     expanded: [] as string[],
   })
+  const disclosure = createChangedFilesDisclosure()
   const showAll = () => state.showAll
   const expanded = () => state.expanded
   const overflow = createMemo(() => Math.max(0, props.diffs.length - maxFiles))
@@ -158,68 +176,96 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
     <div
       data-slot="session-turn-diffs"
       data-component="session-turn-diffs-group"
+      data-expanded={disclosure.expanded() || undefined}
       data-show-all={showAll() || undefined}
     >
-      <div data-slot="session-turn-diffs-header">
+      <button
+        type="button"
+        data-slot="session-turn-diffs-header"
+        aria-controls={disclosure.contentId}
+        aria-expanded={disclosure.expanded()}
+        onClick={disclosure.toggle}
+      >
         <span data-slot="session-turn-diffs-label">
           {language.plural("ui.sessionTurn.diffs.changed", props.diffs.length)}
         </span>
         <DiffChanges changes={props.diffs} />
-        <Show when={overflow() > 0}>
-          <span data-slot="session-turn-diffs-toggle" onClick={() => setState("showAll", !showAll())}>
-            {showAll() ? language.t("ui.sessionTurn.diffs.showLess") : language.t("ui.sessionTurn.diffs.showAll")}
-          </span>
-        </Show>
-      </div>
-      <div data-component="session-turn-diffs-content">
-        <Accordion
-          multiple
-          style={{ "--sticky-accordion-offset": "44px" }}
-          value={expanded()}
-          onChange={(value) => setState("expanded", Array.isArray(value) ? value : value ? [value] : [])}
-        >
-          <For each={visible()}>
-            {(diff) => {
-              const opened = createMemo(() => expanded().includes(diff.file))
+        <span data-slot="session-turn-diffs-chevron">
+          <Icon name="chevron-down" size="small" />
+        </span>
+      </button>
+      <Show when={disclosure.expanded()}>
+        <div id={disclosure.contentId} data-component="session-turn-diffs-content">
+          <Accordion
+            multiple
+            style={{ "--sticky-accordion-offset": "44px" }}
+            value={expanded()}
+            onChange={(value) => setState("expanded", Array.isArray(value) ? value : value ? [value] : [])}
+          >
+            <For each={visible()}>
+              {(diff) => {
+                const opened = createMemo(() => expanded().includes(diff.file))
 
-              return (
-                <Accordion.Item value={diff.file}>
-                  <StickyAccordionHeader>
-                    <Accordion.Trigger>
-                      <div data-slot="session-turn-diff-trigger">
-                        <span data-slot="session-turn-diff-path">
-                          <Show when={diff.file.includes("/")}>
-                            <span data-slot="session-turn-diff-directory">{`\u202A${getDirectory(diff.file)}\u202C`}</span>
-                          </Show>
-                          <span data-slot="session-turn-diff-filename">{getFilename(diff.file)}</span>
-                        </span>
-                        <div data-slot="session-turn-diff-meta">
-                          <span data-slot="session-turn-diff-changes">
-                            <DiffChanges changes={diff} />
-                          </span>
-                          <span data-slot="session-turn-diff-chevron">
-                            <Icon name="chevron-down" size="small" />
-                          </span>
-                        </div>
+                return (
+                  <Accordion.Item value={diff.file}>
+                    <StickyAccordionHeader>
+                      <div
+                        data-slot="session-turn-diff-header"
+                        data-has-html-preview={props.htmlPreview && htmlArtifactPath(diff.file) ? "" : undefined}
+                      >
+                        <Accordion.Trigger>
+                          <div data-slot="session-turn-diff-trigger">
+                            <span data-slot="session-turn-diff-path">
+                              <Show when={diff.file.includes("/")}>
+                                <span data-slot="session-turn-diff-directory">
+                                  {`\u202A${getDirectory(diff.file)}\u202C`}
+                                </span>
+                              </Show>
+                              <span data-slot="session-turn-diff-filename">{getFilename(diff.file)}</span>
+                            </span>
+                            <div data-slot="session-turn-diff-meta">
+                              <span data-slot="session-turn-diff-changes">
+                                <DiffChanges changes={diff} />
+                              </span>
+                              <span data-slot="session-turn-diff-chevron">
+                                <Icon name="chevron-down" size="small" />
+                              </span>
+                            </div>
+                          </div>
+                        </Accordion.Trigger>
+                        <Show when={props.htmlPreview && htmlArtifactPath(diff.file)}>
+                          <IconButtonV2
+                            data-slot="session-turn-diff-html-preview"
+                            type="button"
+                            size="small"
+                            variant="ghost-muted"
+                            title={props.htmlPreview!.label}
+                            aria-label={`${props.htmlPreview!.label}: ${diff.file}`}
+                            icon={<IconV2 name="eye" size="small" />}
+                            onClick={() => props.htmlPreview?.open(diff.file)}
+                          />
+                        </Show>
                       </div>
-                    </Accordion.Trigger>
-                  </StickyAccordionHeader>
-                  <Accordion.Content>
-                    <Show when={opened()}>
-                      <TimelineDiffView diff={diff} />
-                    </Show>
-                  </Accordion.Content>
-                </Accordion.Item>
-              )
-            }}
-          </For>
-        </Accordion>
-        <Show when={!showAll() && overflow() > 0}>
-          <div data-slot="session-turn-diffs-more" onClick={() => setState("showAll", true)}>
-            {language.t("ui.sessionTurn.diffs.more", { count: String(overflow()) })}
-          </div>
-        </Show>
-      </div>
+                    </StickyAccordionHeader>
+                    <Accordion.Content>
+                      <Show when={opened()}>
+                        <TimelineDiffView diff={diff} />
+                      </Show>
+                    </Accordion.Content>
+                  </Accordion.Item>
+                )
+              }}
+            </For>
+          </Accordion>
+          <Show when={overflow() > 0}>
+            <button type="button" data-slot="session-turn-diffs-more" onClick={() => setState("showAll", !showAll())}>
+              {showAll()
+                ? language.t("ui.sessionTurn.diffs.showLess")
+                : language.t("ui.sessionTurn.diffs.more", { count: String(overflow()) })}
+            </button>
+          </Show>
+        </div>
+      </Show>
     </div>
   )
 }
@@ -272,6 +318,76 @@ export function MessageTimeline(props: {
   const initialMeasurements = cached?.measurements
   const coldBottomMount = !initialMeasurements?.length && props.shouldAnchorBottom()
   const platform = usePlatform()
+  const buildingAIEmbed = typeof window !== "undefined" && isBuildingAIEmbedSearch(window.location.search)
+  const embedShell = resolveBuildingAIEmbedShell(typeof window === "undefined" ? "" : window.location.search)
+  const htmlPreviewLabels = createMemo<HtmlArtifactPreviewLabels>(() => ({
+    loading: language.t("common.loading"),
+    failed: language.t("common.requestFailed"),
+    limitation: ["zh", "zht"].includes(language.locale())
+      ? "仅支持单文件报告和已批准的 CDN 资源；本地相对路径资源不会加载。"
+      : "Only single-file reports and approved CDN resources are supported; local relative resources do not load.",
+  }))
+  const htmlPreviewLabel = createMemo(() =>
+    ["zh", "zht"].includes(language.locale()) ? "在浏览器中打开 HTML 报告" : "Open HTML report in browser",
+  )
+  const openHtmlPreview = (path: string) => {
+    const buildingAIReportUrl = buildBuildingAIReportUrl(
+      workspaceHtmlArtifactPath(path, sdk().directory) ?? path,
+      window.location.search,
+    )
+    if (buildingAIReportUrl) {
+      const opened = window.open(buildingAIReportUrl, "_blank")
+      if (opened) {
+        try {
+          opened.opener = null
+        } catch {
+          // Ignore cross-context assignment failures.
+        }
+        return
+      }
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: ["zh", "zht"].includes(language.locale())
+          ? "浏览器阻止了新标签页，请允许此站点打开弹出式窗口后重试。"
+          : "The browser blocked the new tab. Allow popups for this site and try again.",
+      })
+      return
+    }
+
+    void openHtmlArtifactPreview({
+      path,
+      labels: htmlPreviewLabels(),
+      readFile: (value) =>
+        sdk()
+          .client.file.read({ path: value })
+          .then((response) => response.data),
+    }).then((result) => {
+      if (result !== "blocked") return
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: ["zh", "zht"].includes(language.locale())
+          ? "浏览器阻止了新标签页，请允许此站点打开弹出式窗口后重试。"
+          : "The browser blocked the new tab. Allow popups for this site and try again.",
+      })
+    })
+  }
+  const markdownHtmlPreview = createMemo(() => {
+    if (!buildingAIEmbed) return
+    return {
+      label: htmlPreviewLabel(),
+      matches: (value: string) => !!embeddedHtmlArtifactPath(value, window.location.search),
+      open: (path: string) => openHtmlPreview(workspaceHtmlArtifactPath(path, sdk().directory) ?? path),
+    }
+  })
+  const diffHtmlPreview = createMemo(() => {
+    if (!buildingAIEmbed) return
+    return {
+      label: htmlPreviewLabel(),
+      open: (path: string) => openHtmlPreview(workspaceHtmlArtifactPath(path, sdk().directory) ?? path),
+    }
+  })
 
   const [listRoot, setListRoot] = createSignal<HTMLDivElement>()
   const sessionID = createMemo(() => params.id)
@@ -330,6 +446,7 @@ export function MessageTimeline(props: {
     return language.t("command.session.new")
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
+  const showSessionTitle = createMemo(() => showHeader() && !buildingAIEmbed)
   const projection = createTimelineProjection({
     messages: sessionMessages,
     userMessages: () => props.userMessages,
@@ -440,7 +557,7 @@ export function MessageTimeline(props: {
     followOnAppend: true,
     scrollEndThreshold: 80,
     get scrollMargin() {
-      return showHeader() ? 64 : 0
+      return showSessionTitle() ? 64 : 0
     },
     overscan: 50,
     paddingEnd: 64,
@@ -1057,10 +1174,17 @@ export function MessageTimeline(props: {
       if (group.type !== "part") return
       return getMsgPart(group.ref.messageID, group.ref.partID)
     })
+    const toolDefaults = createMemo(() =>
+      resolveBuildingAIToolDefaults(
+        typeof window === "undefined" ? "" : window.location.search,
+        settings.general.shellToolPartsExpanded(),
+        settings.general.editToolPartsExpanded(),
+      ),
+    )
     const defaultOpen = createMemo(() => {
       const item = part()
       if (!item) return
-      return partDefaultOpen(item, settings.general.shellToolPartsExpanded(), settings.general.editToolPartsExpanded())
+      return partDefaultOpen(item, toolDefaults().shell, toolDefaults().edit, toolDefaults().collapseAll)
     })
 
     return (
@@ -1074,6 +1198,7 @@ export function MessageTimeline(props: {
                 showAssistantCopyPartID={assistantCopyPartID(row().userMessageID)}
                 turnDurationMs={turnDurationMs(row().userMessageID)}
                 useV2Actions={settings.general.newLayoutDesigns()}
+                markdownPathAction={markdownHtmlPreview()}
                 defaultOpen={defaultOpen()}
                 toolOpen={toolOpen[part().id] ?? defaultOpen()}
                 onToolOpenChange={(open) => setToolOpen(part().id, open)}
@@ -1254,7 +1379,7 @@ export function MessageTimeline(props: {
         return (
           <TimelineRowFrame row={diffSummaryRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
-              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} />
+              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} htmlPreview={diffHtmlPreview()} />
             </div>
           </TimelineRowFrame>
         )
@@ -1315,7 +1440,7 @@ export function MessageTimeline(props: {
         data-timeline-key={props.rowKey}
         style={{
           position: "absolute",
-          top: `${item().start - (showHeader() ? 64 : 0)}px`,
+          top: `${item().start - (showSessionTitle() ? 64 : 0)}px`,
           left: "0",
           width: "100%",
           height: `${item().size}px`,
@@ -1412,10 +1537,10 @@ export function MessageTimeline(props: {
         onClick={props.onAutoScrollInteraction}
         class="relative min-w-0 w-full h-full"
         style={{
-          "--sticky-accordion-top": showHeader() ? "48px" : "0px",
+          "--sticky-accordion-top": showSessionTitle() ? "48px" : "0px",
         }}
       >
-        <Show when={showHeader()}>
+        <Show when={showSessionTitle()}>
           <div
             data-session-title
             classList={{
@@ -1512,7 +1637,7 @@ export function MessageTimeline(props: {
                   </Show>
                 </div>
               </div>
-              <Show when={sessionID()} keyed>
+              <Show when={embedShell.headerActions ? sessionID() : undefined} keyed>
                 {(id) => (
                   <div
                     classList={{

@@ -327,11 +327,11 @@ const scenarios: Scenario[] = [
     .json(200, array),
   http.protected
     .get("/file/content", "file.read")
-    .seeded((ctx) => ctx.file("hello.txt", "hello\n"))
+    .seeded((ctx) => ctx.file("hello.txt", "  hello\n"))
     .at((ctx) => ({ path: `/file/content?${new URLSearchParams({ path: "hello.txt" })}`, headers: ctx.headers() }))
     .json(200, (body) => {
       object(body)
-      check(body.content === "hello", `content should match seeded file: ${JSON.stringify(body)}`)
+      check(body.content === "  hello\n", `content should preserve seeded whitespace: ${JSON.stringify(body)}`)
     }),
   http.protected
     .get("/file/content", "file.read.missing")

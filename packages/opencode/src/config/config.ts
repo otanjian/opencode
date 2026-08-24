@@ -35,6 +35,7 @@ import { ConfigPlugin } from "./plugin"
 import { ConfigVariable } from "./variable"
 import { Npm } from "@opencode-ai/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
+import { withBuildingAIBowiMcp } from "@/mcp/buildingai"
 
 // Custom merge function that concatenates array fields instead of replacing them
 // Keep remeda's deep conditional merge type out of hot config-loading paths; TS profiling showed it dominates here.
@@ -584,7 +585,7 @@ const layer = Layer.effect(
         }
 
         return {
-          config: result,
+          config: withBuildingAIBowiMcp(result, process.env),
           directories,
           deps,
           consoleState: {

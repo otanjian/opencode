@@ -3,6 +3,7 @@ import { batch, createEffect, createMemo, createSignal, onCleanup } from "solid-
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import { usePlatform } from "@/context/platform"
+import { shouldShowBuildingAIReasoning } from "@/utils/buildingai-embed"
 
 export interface NotificationSettings {
   agent: boolean
@@ -396,10 +397,14 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         setShowTerminal(value: boolean) {
           setStore("general", "showTerminal", value)
         },
-        showReasoningSummaries: withFallback(
-          () => store.general?.showReasoningSummaries,
-          defaultSettings.general.showReasoningSummaries,
-        ),
+        showReasoningSummaries: (() => {
+          const configured = withFallback(
+            () => store.general?.showReasoningSummaries,
+            defaultSettings.general.showReasoningSummaries,
+          )
+          return () =>
+            shouldShowBuildingAIReasoning(typeof window === "undefined" ? "" : window.location.search, configured())
+        })(),
         setShowReasoningSummaries(value: boolean) {
           setStore("general", "showReasoningSummaries", value)
         },

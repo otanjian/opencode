@@ -44,6 +44,18 @@ describe("partDefaultOpen", () => {
   test("preserves shell defaults", () => {
     expect(partDefaultOpen(tool("shell", {}), true, false)).toBe(true)
   })
+
+  test("collapses shell and file tools when the embed defaults are closed", () => {
+    expect(partDefaultOpen(tool("shell", {}), false, false)).toBe(false)
+    expect(partDefaultOpen(tool("write", {}), false, false)).toBe(false)
+    expect(partDefaultOpen(tool("edit", { filediff: { additions: 1, deletions: 1 } }), false, false)).toBe(false)
+    expect(partDefaultOpen(tool("apply_patch", { files: [{ filePath: "one.ts", type: "update" }] }), false, false)).toBe(false)
+  })
+
+  test("collapses other expandable tool parts when requested", () => {
+    expect(partDefaultOpen(tool("question", {}), false, false, true)).toBe(false)
+    expect(partDefaultOpen(tool("todowrite", {}), false, false, true)).toBe(false)
+  })
 })
 
 function tool(name: string, metadata: Record<string, unknown>): PartType {

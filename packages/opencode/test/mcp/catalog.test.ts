@@ -27,6 +27,27 @@ function mcpTool() {
 }
 
 describe("McpCatalog.convertTool", () => {
+  test("adds transport metadata without changing model arguments", async () => {
+    let request: Record<string, unknown> | undefined
+    const client = {
+      callTool: async (input: Record<string, unknown>) => {
+        request = input
+        return { content: [] }
+      },
+    } as unknown as Client
+    const converted = McpCatalog.convertTool(mcpTool(), client, undefined, (toolCallId) => ({
+      buildingai: { sessionId: "ses_123", callId: toolCallId },
+    }))
+
+    await converted.execute?.({ visible: true }, options)
+
+    expect(request).toEqual({
+      name: "screenshot",
+      arguments: { visible: true },
+      _meta: { buildingai: { sessionId: "ses_123", callId: "call_mcp" } },
+    })
+  })
+
   test("preserves content when structuredContent is also present", async () => {
     const content = [{ type: "image" as const, mimeType: "image/png", data: "AAAA" }]
     const structuredContent = { image: { mimeType: "image/png", data: "AAAA" } }

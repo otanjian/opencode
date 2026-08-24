@@ -45,6 +45,7 @@ import { ToolErrorCard } from "./tool-error-card"
 import { Checkbox } from "@opencode-ai/ui/checkbox"
 import { DiffChanges } from "@opencode-ai/ui/diff-changes"
 import { Markdown } from "./markdown"
+import type { MarkdownPathAction } from "./markdown-path-action"
 import { ImagePreview } from "@opencode-ai/ui/image-preview"
 import { getDirectory as _getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { AttachmentCardV2 } from "../v2/components/attachment-card-v2"
@@ -65,6 +66,7 @@ import { partDefaultOpen } from "./part-default-open"
 import { animate } from "motion"
 import { attached, inline, kind, typeLabel } from "./message-file"
 import { readPartText } from "./message-part-text"
+import { reasoningStatusKey } from "./reasoning-status"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
 
 async function writeClipboard(text: string): Promise<boolean> {
@@ -203,6 +205,7 @@ export interface MessagePartProps {
   showAssistantCopyPartID?: string | null
   turnDurationMs?: number
   useV2Actions?: boolean
+  markdownPathAction?: MarkdownPathAction
 }
 
 function MessageActionButton(
@@ -333,7 +336,7 @@ function createPacedValue(getValue: () => string, live?: () => boolean) {
   return value
 }
 
-function PacedMarkdown(props: { text: string; cacheKey: string; streaming: boolean }) {
+function PacedMarkdown(props: { text: string; cacheKey: string; streaming: boolean; pathAction?: MarkdownPathAction }) {
   const value = createPacedValue(
     () => props.text,
     () => props.streaming,
@@ -341,7 +344,7 @@ function PacedMarkdown(props: { text: string; cacheKey: string; streaming: boole
 
   return (
     <Show when={value()}>
-      <Markdown text={value()} cacheKey={props.cacheKey} streaming={props.streaming} />
+      <Markdown text={value()} cacheKey={props.cacheKey} streaming={props.streaming} pathAction={props.pathAction} />
     </Show>
   )
 }
@@ -1448,6 +1451,7 @@ export function Part(props: MessagePartProps) {
         showAssistantCopyPartID={props.showAssistantCopyPartID}
         turnDurationMs={props.turnDurationMs}
         useV2Actions={props.useV2Actions}
+        markdownPathAction={props.markdownPathAction}
       />
     </Show>
   )
@@ -1732,7 +1736,12 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     <Show when={text()}>
       <div data-component="text-part" data-timeline-part-id={part().id}>
         <div data-slot="text-part-body">
-          <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+          <PacedMarkdown
+            text={text()}
+            cacheKey={part().id}
+            streaming={streaming()}
+            pathAction={props.markdownPathAction}
+          />
         </div>
         <Show when={showCopy()}>
           <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
@@ -1758,17 +1767,37 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
 
 PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   const data = useData()
+  const i18n = useI18n()
   const part = () => props.part as ReasoningPart
   const streaming = createMemo(
     () => props.message.role === "assistant" && typeof (props.message as AssistantMessage).time.completed !== "number",
   )
   const text = () => readPartText(data.store.part_text_accum_delta, part())
+  const buildingAIEmbed =
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("buildingaiEmbed") === "1"
 
   return (
     <Show when={text()}>
-      <div data-component="reasoning-part" data-timeline-part-id={part().id}>
-        <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
-      </div>
+      <Show
+        when={buildingAIEmbed}
+        fallback={
+          <div data-component="reasoning-part" data-timeline-part-id={part().id}>
+            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+          </div>
+        }
+      >
+        <details
+          data-component="reasoning-part"
+          data-buildingai-embed-reasoning
+          data-timeline-part-id={part().id}
+          open={streaming()}
+        >
+          <summary data-slot="reasoning-part-summary">{i18n.t(reasoningStatusKey(streaming()))}</summary>
+          <div data-slot="reasoning-part-body">
+            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
+          </div>
+        </details>
+      </Show>
     </Show>
   )
 }
@@ -2205,6 +2234,7 @@ ToolRegistry.register({
         <BasicTool
           {...props}
           icon="code-lines"
+          allowOpenWhilePending
           defer={props.deferContent !== false}
           trigger={
             <div data-component="edit-trigger">
@@ -2272,6 +2302,7 @@ ToolRegistry.register({
         <BasicTool
           {...props}
           icon="code-lines"
+          allowOpenWhilePending
           defer={props.deferContent !== false}
           trigger={
             <div data-component="write-trigger">
@@ -2355,6 +2386,7 @@ ToolRegistry.register({
             <BasicTool
               {...props}
               icon="code-lines"
+              allowOpenWhilePending
               defer={props.deferContent !== false}
               trigger={{
                 title: i18n.t("ui.tool.patch"),
@@ -2454,6 +2486,7 @@ ToolRegistry.register({
           <BasicTool
             {...props}
             icon="code-lines"
+            allowOpenWhilePending
             defer={props.deferContent !== false}
             trigger={
               <div data-component="edit-trigger">
@@ -2545,7 +2578,7 @@ ToolRegistry.register({
     return (
       <BasicTool
         {...props}
-        defaultOpen
+        defaultOpen={props.defaultOpen ?? true}
         icon="checklist"
         trigger={{
           title: i18n.t("ui.tool.todos"),
@@ -2591,7 +2624,7 @@ ToolRegistry.register({
     return (
       <BasicTool
         {...props}
-        defaultOpen={completed()}
+        defaultOpen={props.defaultOpen ?? completed()}
         icon="bubble-5"
         trigger={{
           title: i18n.t("ui.tool.questions"),

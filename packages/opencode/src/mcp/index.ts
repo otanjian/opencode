@@ -32,6 +32,7 @@ import { InstanceState } from "@/effect/instance-state"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { McpCatalog } from "./catalog"
+import { buildingAIManagedHeaders } from "./buildingai"
 import { McpEvent } from "@opencode-ai/schema/mcp-event"
 import { McpBrowser } from "./browser"
 
@@ -159,6 +160,7 @@ export interface McpTool {
   readonly def: MCPToolDef
   readonly client: MCPClient
   readonly timeout?: number
+  readonly server?: string
 }
 
 export interface Interface {
@@ -266,19 +268,22 @@ const layer = Layer.effect(
         )
       }
 
+      const managedHeaders = buildingAIManagedHeaders(key, mcp.url, process.env)
+      const headers = managedHeaders ? { ...(mcp.headers ?? {}), ...managedHeaders } : mcp.headers
+
       const transports: Array<{ name: string; transport: TransportWithAuth }> = [
         {
           name: "StreamableHTTP",
           transport: new StreamableHTTPClientTransport(url, {
             authProvider,
-            requestInit: mcp.headers ? { headers: mcp.headers } : undefined,
+            requestInit: headers ? { headers } : undefined,
           }),
         },
         {
           name: "SSE",
           transport: new SSEClientTransport(url, {
             authProvider,
-            requestInit: mcp.headers ? { headers: mcp.headers } : undefined,
+            requestInit: headers ? { headers } : undefined,
           }),
         },
       ]
@@ -681,7 +686,12 @@ const layer = Layer.effect(
         }
         const timeout = requestTimeout(s, clientName, mcpConfig, defaultTimeout)
         for (const def of listed) {
-          result[McpCatalog.toolName(clientName, def.name)] = { def, client, timeout }
+          result[McpCatalog.toolName(clientName, def.name)] = {
+            def,
+            client,
+            timeout,
+            server: clientName,
+          }
         }
       }
       return result

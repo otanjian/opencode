@@ -4,6 +4,7 @@ import { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
 import { MCP } from "@/mcp"
 import { McpCatalog } from "@/mcp/catalog"
+import { buildingAIInvocationMeta } from "@/mcp/buildingai"
 import { Permission } from "@/permission"
 import { Tool } from "@/tool/tool"
 import { ToolJsonSchema } from "@/tool/json-schema"
@@ -23,6 +24,12 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { isRecord } from "@/util/record"
 import { RuntimeFlags } from "@/effect/runtime-flags"
+import {
+  adaptBuildingAISapConnectionSchema,
+  mergeBuildingAICredentialOverrides,
+  resolveBuildingAICredentialOverrides,
+} from "./buildingai-credentials"
+import { getBuildingAIContext } from "./buildingai-context"
 
 const MCP_RESOURCE_TOOLS = {
   list: "list_mcp_resources",
@@ -388,12 +395,18 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
   if (flags.experimentalCodeMode) return tools
 
   for (const [key, entry] of Object.entries(yield* mcp.tools())) {
-    const item = McpCatalog.convertTool(entry.def, entry.client, entry.timeout)
+    const item = McpCatalog.convertTool(entry.def, entry.client, entry.timeout, (callId) =>
+      buildingAIInvocationMeta(entry.server ?? "", input.session.id, callId),
+    )
     const execute = item.execute
     if (!execute) continue
 
     const schema = yield* Effect.promise(() => Promise.resolve(asSchema(item.inputSchema).jsonSchema))
-    const transformed = ProviderTransform.schema(input.model, { ...schema, properties: schema.properties ?? {} })
+    const normalizedSchema = { ...schema, properties: schema.properties ?? {} }
+    const managedSchema = getBuildingAIContext(input.session.metadata)
+      ? adaptBuildingAISapConnectionSchema(key, normalizedSchema)
+      : normalizedSchema
+    const transformed = ProviderTransform.schema(input.model, managedSchema)
     item.inputSchema = jsonSchema(transformed)
     item.execute = (args, opts) =>
       run.promise(
@@ -406,7 +419,15 @@ export const resolve = Effect.fn("SessionTools.resolve")(function* (input: {
           )
           const result: Awaited<ReturnType<NonNullable<typeof execute>>> = yield* Effect.gen(function* () {
             yield* ctx.ask({ permission: key, metadata: {}, patterns: ["*"], always: ["*"] })
-            return yield* Effect.promise(() => execute(args, opts))
+            const resolvedArgs = yield* Effect.promise(async () => {
+              const overrides = await resolveBuildingAICredentialOverrides({
+                sessionId: input.session.id,
+                toolName: key,
+                args,
+              })
+              return mergeBuildingAICredentialOverrides(args, overrides)
+            })
+            return yield* Effect.promise(() => execute(resolvedArgs, opts))
           }).pipe(
             Effect.withSpan("Tool.execute", {
               attributes: {
