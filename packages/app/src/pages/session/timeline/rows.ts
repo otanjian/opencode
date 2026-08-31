@@ -1,7 +1,7 @@
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
 import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import { AssistantMessage, Part, SessionStatus, UserMessage } from "@opencode-ai/sdk/v2"
-import { groupParts, renderable, type PartGroup } from "@opencode-ai/session-ui/message-part"
+import { groupAssistantTurn, groupParts, renderable, type PartGroup } from "@opencode-ai/session-ui/message-part"
 import { TimelineRow, type SummaryDiff } from "./timeline-row"
 import { uniqueSummaryDiffs } from "./summary-diffs"
 import { compareMessages } from "@/utils/session-message"
@@ -41,6 +41,7 @@ export namespace Timeline {
     status: SessionStatus["type"],
     inlineComments: boolean,
     projectedUserMessages: UserMessage[],
+    buildingAIEmbed = false,
   ) {
     const turns: { user: UserMessage; assistants: AssistantMessage[] }[] = []
     const turnByUserID = new Map<string, (typeof turns)[number]>()
@@ -93,6 +94,7 @@ export namespace Timeline {
           status,
           turn.user.id === activeMessageID,
           inlineComments,
+          buildingAIEmbed,
         ),
       ),
     }
@@ -108,6 +110,7 @@ export namespace Timeline {
     isActive: boolean,
     // v2 renders comments inside the user message attachments row instead of a strip row
     inlineComments: boolean,
+    buildingAIEmbed = false,
   ) {
     const rows: TimelineRow.TimelineRow[] = []
 
@@ -119,30 +122,26 @@ export namespace Timeline {
     const interrupted = interruptedMessageIndex !== -1
     const latestError = assistantMessages.at(-1)?.error
     const error = latestError?.name === "MessageAbortedError" ? undefined : latestError
+    const renderReasoning = buildingAIEmbed || showReasoning
 
     const assistantPartRefs = assistantMessages.flatMap((message, messageIndex) =>
       getMessageParts(message.id)
-        .filter((part) => renderable(part, showReasoning))
+        .filter((part) => renderable(part, renderReasoning))
         .map((part) => ({ messageID: message.id, messageIndex, part })),
     )
+    const assistantItemsFor = (refs: typeof assistantPartRefs) =>
+      (buildingAIEmbed ? groupAssistantTurn(refs) : groupParts(refs, { buildingAIEmbed })).map((group) => ({
+        type: "part" as const,
+        group,
+      }))
     const assistantItems =
       interrupted && !compaction
         ? [
-            ...groupParts(assistantPartRefs.filter((ref) => ref.messageIndex <= interruptedMessageIndex)).map(
-              (group) => ({
-                type: "part" as const,
-                group,
-              }),
-            ),
+            ...assistantItemsFor(assistantPartRefs.filter((ref) => ref.messageIndex <= interruptedMessageIndex)),
             { type: "interrupted" as const },
-            ...groupParts(assistantPartRefs.filter((ref) => ref.messageIndex > interruptedMessageIndex)).map(
-              (group) => ({
-                type: "part" as const,
-                group,
-              }),
-            ),
+            ...assistantItemsFor(assistantPartRefs.filter((ref) => ref.messageIndex > interruptedMessageIndex)),
           ]
-        : groupParts(assistantPartRefs).map((group) => ({ type: "part" as const, group }))
+        : assistantItemsFor(assistantPartRefs)
     if (previousUserMessage) rows.push(new TimelineRow.TurnGap({ userMessageID: userMessage.id }))
 
     if (comments.length > 0 && !inlineComments)
@@ -190,7 +189,7 @@ export namespace Timeline {
       assistantGroupIndex += 1
     })
 
-    if (isActive && status === "busy" && !error && (showReasoning ? assistantPartRefs.length === 0 : true)) {
+    if (isActive && status === "busy" && !error && (renderReasoning ? assistantPartRefs.length === 0 : true)) {
       const heading = assistantMessages
         .flatMap((message) => getMessageParts(message.id))
         .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))

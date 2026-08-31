@@ -3,7 +3,19 @@ import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 import { normalizeSessionMessages } from "@/utils/session-message"
 
 mock.module("@opencode-ai/session-ui/message-part", () => ({
-  renderable: () => true,
+  renderable: (part: { type: string }, showReasoning = true) => part.type !== "reasoning" || showReasoning,
+  groupAssistantTurn: (refs: Array<{ messageID: string; part: { id: string } }>) => {
+    const first = refs[0]
+    if (!first) return []
+    return [
+      {
+        type: "assistant-message" as const,
+        key: `assistant-turn:${first.messageID}:${first.part.id}`,
+        messageID: first.messageID,
+        refs: refs.map((ref) => ({ messageID: ref.messageID, partID: ref.part.id })),
+      },
+    ]
+  },
   groupParts: (refs: Array<{ messageID: string; part: { id: string } }>) =>
     refs.map((ref) => ({
       type: "part" as const,
@@ -203,5 +215,98 @@ describe("current session timeline rows", () => {
     )
 
     expect(result.rows.map((row) => row._tag)).toEqual(["UserMessage", "AssistantPart"])
+  })
+
+  test("uses one assistant row per user turn in the BuildingAI embed timeline", () => {
+    const source = [
+      { id: "msg_user", type: "user", text: "summarize", time: { created: 1 } },
+      {
+        id: "msg_assistant",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [
+          { type: "reasoning", text: "think" },
+          {
+            type: "tool",
+            id: "call_read",
+            name: "read",
+            state: {
+              status: "completed",
+              input: {},
+              metadata: {},
+              content: [{ type: "text", text: "file" }],
+            },
+            time: { created: 2, ran: 2, completed: 2 },
+          },
+          { type: "text", text: "answer" },
+        ],
+        time: { created: 2, completed: 3 },
+      },
+      {
+        id: "msg_assistant_followup",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [{ type: "text", text: "follow-up answer" }],
+        time: { created: 4, completed: 5 },
+      },
+    ] satisfies SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const messages = new Map(normalized.messages.map((message) => [message.id, message]))
+
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      (messageID) => messages.get(messageID),
+      (messageID) => normalized.parts.get(messageID) ?? [],
+      true,
+      "idle",
+      true,
+      normalized.messages.filter((message) => message.role === "user"),
+      true,
+    )
+
+    const assistantRows = result.rows.filter((row) => row._tag === "AssistantPart")
+    expect(assistantRows).toHaveLength(1)
+    expect(assistantRows[0]?.group.type).toBe("assistant-message")
+    expect(assistantRows[0]?.group.type === "assistant-message" ? assistantRows[0].group.refs : []).toHaveLength(4)
+  })
+
+  test("keeps reasoning parts in the BuildingAI embed when summaries are disabled globally", () => {
+    const source = [
+      { id: "msg_user", type: "user", text: "summarize", time: { created: 1 } },
+      {
+        id: "msg_assistant",
+        type: "assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+        content: [
+          { type: "reasoning", text: "private reasoning" },
+          { type: "text", text: "answer" },
+        ],
+        time: { created: 2, completed: 3 },
+      },
+    ] satisfies SessionMessageInfo[]
+    const normalized = normalizeSessionMessages("ses_1", source)
+    const messages = new Map(normalized.messages.map((message) => [message.id, message]))
+
+    const result = Timeline.constructSessionMessageRows(
+      source,
+      (messageID) => messages.get(messageID),
+      (messageID) => normalized.parts.get(messageID) ?? [],
+      false,
+      "busy",
+      true,
+      normalized.messages.filter((message) => message.role === "user"),
+      true,
+    )
+
+    const assistant = result.rows.find((row) => row._tag === "AssistantPart")
+    expect(assistant?.group.type).toBe("assistant-message")
+    expect(assistant?.group.type === "assistant-message" ? assistant.group.refs.map((ref) => ref.partID) : []).toEqual([
+      "msg_assistant:reasoning:0",
+      "msg_assistant:text:0",
+    ])
+    expect(result.rows.some((row) => row._tag === "Thinking")).toBe(false)
   })
 })

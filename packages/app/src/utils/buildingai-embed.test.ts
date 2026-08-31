@@ -28,14 +28,17 @@ describe("BuildingAI OpenCode embed mode", () => {
     expect(resolveBuildingAIEmbedShell("?buildingaiEmbed=1")).toEqual({
       headerActions: false,
       sidePanel: false,
+      mobileTabs: false,
     })
     expect(resolveBuildingAIEmbedShell("")).toEqual({
       headerActions: true,
       sidePanel: true,
+      mobileTabs: true,
     })
     expect(resolveBuildingAIEmbedShell("?buildingaiEmbed=0")).toEqual({
       headerActions: true,
       sidePanel: true,
+      mobileTabs: true,
     })
   })
 

@@ -15,4 +15,10 @@ describe("BuildingAI embedded session title row contract", () => {
     expect(source).toContain("const showSessionTitle = createMemo(() => showHeader() && !buildingAIEmbed)")
     expect(source).toContain("showSessionTitle() ? 64 : 0")
   })
+
+  test("gates the responsive session/change tabs in the session shell", () => {
+    const source = readFileSync(resolve(import.meta.dir, "../pages/session.tsx"), "utf8")
+    expect(source).toContain("embedShell().mobileTabs &&")
+    expect(source).toContain("<Show when={embedShell().mobileTabs && !!params.id && mobileTabsBottom()}>")
+  })
 })

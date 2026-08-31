@@ -2,9 +2,13 @@ export function isBuildingAIEmbedSearch(search: string): boolean {
   return new URLSearchParams(search).get("buildingaiEmbed") === "1"
 }
 
-export function resolveBuildingAIEmbedShell(search: string): { headerActions: boolean; sidePanel: boolean } {
+export function resolveBuildingAIEmbedShell(search: string): {
+  headerActions: boolean
+  sidePanel: boolean
+  mobileTabs: boolean
+} {
   const visible = !isBuildingAIEmbedSearch(search)
-  return { headerActions: visible, sidePanel: visible }
+  return { headerActions: visible, sidePanel: visible, mobileTabs: visible }
 }
 
 export function shouldShowBuildingAIReasoning(search: string, configured: boolean): boolean {

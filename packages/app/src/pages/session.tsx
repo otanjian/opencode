@@ -2064,7 +2064,15 @@ export default function Page() {
   const sessionPanelContent = () => (
     <>
       {sessionSync() ?? ""}
-      <Show when={!isDesktop() && !!params.id && settings.general.newLayoutDesigns() && !mobileTabsBottom()}>
+      <Show
+        when={
+          embedShell().mobileTabs &&
+          !isDesktop() &&
+          !!params.id &&
+          settings.general.newLayoutDesigns() &&
+          !mobileTabsBottom()
+        }
+      >
         {mobileTabs(true)}
       </Show>
       <div class="flex-1 min-h-0 overflow-hidden">
@@ -2245,7 +2253,7 @@ export default function Page() {
           )
         }}
       </Show>
-      <Show when={!!params.id && mobileTabsBottom()}>{mobileTabs(true, true)}</Show>
+      <Show when={embedShell().mobileTabs && !!params.id && mobileTabsBottom()}>{mobileTabs(true, true)}</Show>
     </>
   )
 
@@ -2259,7 +2267,9 @@ export default function Page() {
           "gap-2 p-2": settings.general.newLayoutDesigns(),
         }}
       >
-        <Show when={!isDesktop() && !!params.id && !settings.general.newLayoutDesigns()}>{mobileTabs()}</Show>
+        <Show when={embedShell().mobileTabs && !isDesktop() && !!params.id && !settings.general.newLayoutDesigns()}>
+          {mobileTabs()}
+        </Show>
 
         <div
           classList={{

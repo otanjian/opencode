@@ -691,6 +691,63 @@
   }
 }
 
+[data-component="buildingai-embed-group"] {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+[data-component="buildingai-embed-assistant-message"] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+[data-component="buildingai-embed-group-trigger"] {
+  width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--v2-text-text-muted);
+  cursor: pointer;
+
+  [data-component="icon"] {
+    color: var(--icon-weak);
+    flex: 0 0 auto;
+  }
+
+  [data-slot="buildingai-embed-group-check"] {
+    color: var(--icon-success-base);
+    margin-inline-start: -3px;
+  }
+
+  [data-slot="buildingai-embed-group-label"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    line-height: var(--line-height-large);
+  }
+
+  [data-slot="collapsible-arrow"] {
+    color: var(--icon-weaker);
+    flex: 0 0 auto;
+  }
+}
+
+[data-component="buildingai-embed-group-list"] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 1px solid var(--v2-border-border-base);
+  margin: 2px 0 4px 7px;
+  padding: 4px 0 4px 12px;
+}
+
 [data-component="diagnostics"] {
   display: flex;
   flex-direction: column;

@@ -17,6 +17,7 @@ import { useNavigate } from "@solidjs/router"
 import { useMutation } from "@tanstack/solid-query"
 import { createVirtualizer, defaultRangeExtractor, elementScroll, type VirtualItem } from "@tanstack/solid-virtual"
 import { Accordion } from "@opencode-ai/ui/accordion"
+import { Collapsible } from "@opencode-ai/ui/collapsible"
 import { Button } from "@opencode-ai/ui/button"
 import { Card } from "@opencode-ai/ui/card"
 import {
@@ -455,6 +456,7 @@ export function MessageTimeline(props: {
     status: sessionStatus,
     showReasoningSummaries: settings.general.showReasoningSummaries,
     inlineComments: settings.general.newLayoutDesigns,
+    buildingAIEmbed,
   })
   const activeMessageID = projection.activeMessageID
   const assistantMessagesByParent = projection.assistantMessagesByParent
@@ -1138,6 +1140,218 @@ export function MessageTimeline(props: {
   }
 
   const renderAssistantPartGroup = (row: Accessor<TimelineRowMap["AssistantPart"]>, onSizeChange?: () => void) => {
+    const renderRef = (ref: { messageID: string; partID: string }, forceOpen = false) => {
+      const message = createMemo(() => messageByID().get(ref.messageID))
+      const part = createMemo(() => getMsgPart(ref.messageID, ref.partID))
+      const toolDefaults = createMemo(() =>
+        resolveBuildingAIToolDefaults(
+          typeof window === "undefined" ? "" : window.location.search,
+          settings.general.shellToolPartsExpanded(),
+          settings.general.editToolPartsExpanded(),
+        ),
+      )
+      const defaultOpen = createMemo(() => {
+        if (forceOpen) return true
+        const item = part()
+        if (!item) return
+        return partDefaultOpen(item, toolDefaults().shell, toolDefaults().edit, toolDefaults().collapseAll)
+      })
+      return (
+        <Show when={message()}>
+          {(message) => (
+            <Show when={part()}>
+              {(part) => (
+                <MessagePart
+                  part={part()}
+                  message={message()}
+                  showAssistantCopyPartID={assistantCopyPartID(row().userMessageID)}
+                  turnDurationMs={turnDurationMs(row().userMessageID)}
+                  useV2Actions={settings.general.newLayoutDesigns()}
+                  markdownPathAction={markdownHtmlPreview()}
+                  defaultOpen={defaultOpen()}
+                  toolOpen={toolOpen[part().id] ?? defaultOpen()}
+                  onToolOpenChange={(value) => setToolOpen(part().id, value)}
+                  deferToolContent
+                  virtualizeDiff={false}
+                  onContentRendered={onSizeChange}
+                />
+              )}
+            </Show>
+          )}
+        </Show>
+      )
+    }
+
+    const group = row().group
+    if (group.type === "assistant-message") {
+      type AssistantPartRef = { ref: { messageID: string; partID: string }; part: PartType }
+      const refs = createMemo(() => group.refs)
+      const parts = createMemo(() =>
+        refs()
+          .map((ref) => ({ ref, part: getMsgPart(ref.messageID, ref.partID) }))
+          .filter((item): item is AssistantPartRef => !!item.part),
+      )
+      const assistantActive = createMemo(
+        () => workingTurn(row().userMessageID) && lastAssistantGroupKey().get(row().userMessageID) === row().group.key,
+      )
+      const reasoning = createMemo(() =>
+        parts().filter(
+          (item): item is AssistantPartRef & { part: Extract<PartType, { type: "reasoning" }> } =>
+            item.part.type === "reasoning" && !!item.part.text,
+        ),
+      )
+      const tools = createMemo(() =>
+        parts().filter(
+          (item): item is AssistantPartRef & { part: ToolPart } =>
+            item.part.type === "tool" && item.part.tool !== "question",
+        ),
+      )
+      const completedTools = createMemo(() =>
+        tools().filter((item) => item.part.state.status === "completed" || item.part.state.status === "error"),
+      )
+      const activeTools = createMemo(() =>
+        tools().filter((item) => item.part.state.status !== "completed" && item.part.state.status !== "error"),
+      )
+      const activeReasoning = createMemo(() => {
+        if (!assistantActive()) return []
+        const latest = parts().at(-1)
+        if (!latest || latest.part.type !== "reasoning" || !latest.part.text) return []
+        return reasoning().filter((item) => item.ref.partID === latest.ref.partID)
+      })
+      const completedReasoning = createMemo(() =>
+        reasoning().filter((item) => !activeReasoning().some((active) => active.ref.partID === item.ref.partID)),
+      )
+      const text = createMemo(() =>
+        parts().filter(
+          (item): item is AssistantPartRef & { part: Extract<PartType, { type: "text" }> } =>
+            item.part.type === "text" && !!item.part.text?.trim(),
+        ),
+      )
+      const other = createMemo(() =>
+        parts().filter(
+          (item) =>
+            (item.part.type === "tool" && item.part.tool === "question") ||
+            (item.part.type !== "reasoning" &&
+              item.part.type !== "tool" &&
+              item.part.type !== "text" &&
+              item.part.type !== "step-start" &&
+              item.part.type !== "step-finish"),
+        ),
+      )
+      const renderSummary = (
+        kind: "reasoning" | "tools",
+        summaryRefs: { ref: { messageID: string; partID: string } }[],
+      ) => {
+        if (summaryRefs.length === 0) return null
+        const key = `buildingai:${kind}:${group.key}:${summaryRefs.map((item) => item.ref.partID).join(",")}`
+        const open = () => toolOpen[key] === true
+        return (
+          <Collapsible
+            open={open()}
+            onOpenChange={(value) => {
+              setToolOpen(key, value)
+              onSizeChange?.()
+            }}
+            variant="ghost"
+            class="buildingai-embed-group"
+            data-component="buildingai-embed-group"
+            data-buildingai-embed-group-kind={kind}
+            data-timeline-part-ids={summaryRefs.map((item) => item.ref.partID).join(",")}
+          >
+            <Collapsible.Trigger>
+              <div data-component="buildingai-embed-group-trigger">
+                <Icon name={kind === "reasoning" ? "brain" : "task"} size="small" />
+                <Icon name="check-small" size="small" data-slot="buildingai-embed-group-check" />
+                <span data-slot="buildingai-embed-group-label">
+                  {language.t(
+                    kind === "reasoning"
+                      ? "ui.sessionTurn.status.completedThoughts"
+                      : "ui.sessionTurn.status.completedTools",
+                    { count: summaryRefs.length },
+                  )}
+                </span>
+                <Collapsible.Arrow />
+              </div>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <div data-component="buildingai-embed-group-list">
+                <For each={summaryRefs}>{(item) => renderRef(item.ref)}</For>
+              </div>
+            </Collapsible.Content>
+          </Collapsible>
+        )
+      }
+
+      return (
+        <div data-component="buildingai-embed-assistant-message" data-message-id={group.messageID}>
+          {renderSummary(
+            "reasoning",
+            completedReasoning().map((item) => item),
+          )}
+          <For each={activeReasoning()}>{(item) => renderRef(item.ref, true)}</For>
+          {renderSummary(
+            "tools",
+            completedTools().map((item) => item),
+          )}
+          <For each={activeTools()}>{(item) => renderRef(item.ref)}</For>
+          <For each={text()}>{(item) => renderRef(item.ref)}</For>
+          <For each={other()}>{(item) => renderRef(item.ref)}</For>
+        </div>
+      )
+    }
+
+    if (row().group.type === "reasoning" || row().group.type === "tools") {
+      const kind = row().group.type
+      const refs = createMemo(() => {
+        const group = row().group
+        return "refs" in group ? group.refs : []
+      })
+      const openKey = () => `buildingai:${kind}:${row().group.key}`
+      const active = createMemo(
+        () =>
+          kind === "reasoning" &&
+          workingTurn(row().userMessageID) &&
+          lastAssistantGroupKey().get(row().userMessageID) === row().group.key,
+      )
+      const open = createMemo(() => toolOpen[openKey()] ?? active())
+      const label = () => {
+        if (active()) return language.t("ui.sessionTurn.status.thinking")
+        return language.t(
+          kind === "reasoning" ? "ui.sessionTurn.status.completedThoughts" : "ui.sessionTurn.status.completedTools",
+          { count: refs().length },
+        )
+      }
+      return (
+        <Collapsible
+          open={open()}
+          onOpenChange={(value) => {
+            setToolOpen(openKey(), value)
+            onSizeChange?.()
+          }}
+          variant="ghost"
+          class="buildingai-embed-group"
+          data-component="buildingai-embed-group"
+          data-buildingai-embed-group-kind={kind}
+          data-timeline-part-ids={refs()
+            .map((ref) => ref.partID)
+            .join(",")}
+        >
+          <Collapsible.Trigger>
+            <div data-component="buildingai-embed-group-trigger">
+              <Icon name={kind === "reasoning" ? "brain" : "task"} size="small" />
+              <span data-slot="buildingai-embed-group-label">{label()}</span>
+              <Collapsible.Arrow />
+            </div>
+          </Collapsible.Trigger>
+          <Collapsible.Content>
+            <div data-component="buildingai-embed-group-list">
+              <For each={refs()}>{(ref) => renderRef(ref)}</For>
+            </div>
+          </Collapsible.Content>
+        </Collapsible>
+      )
+    }
+
     if (row().group.type === "context") {
       const parts = createMemo(() => {
         const group = row().group
